@@ -4,7 +4,7 @@ Notes on practicing geospatial data analysis in R from the book
 
 ## Progress
 
-- [ ] 1. Introduction
+- [x] 1. Introduction
 
 Foundations
 - [ ] 2. Geographic data in R
