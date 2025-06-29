@@ -7,7 +7,7 @@ Notes on practicing geospatial data analysis in R from the book
 - [x] 1. Introduction
 
 Foundations
-- [ ] 2. Geographic data in R
+- [x] 2. Geographic data in R
 - [ ] 3. Attribute data operations
 - [ ] 4. Spatial data operations
 - [ ] 5. Geometry operations

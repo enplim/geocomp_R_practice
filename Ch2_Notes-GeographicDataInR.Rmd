@@ -521,28 +521,106 @@ units::set_units(st_area(luxembourg), km^2)
 
 
 ## Exercises
-E1. Use `summary()` on the geometry column of the world data object that is included in the **spData** package. What does the output tell us about:
+E1. Use `summary()` on the geometry column of the `world` data object that is included in the **spData** package. What does the output tell us about:
 
     Its geometry type?
     The number of countries?
     Its coordinate reference system (CRS)?
 
+Solution:
+```{r}
+summary(world$geom)
+```
+
+Ans: Multipolygon, 177 countries, ESPG:4326
+
 E2. Run the code that ‘generated’ the map of the world in Section 2.2.3 (Basic map-making). Find two similarities and two differences between the image on your computer and that in the book.
 
-    What does the `cex` argument do (see ?plot)?
+    What does the `cex` argument do (see `?plot`)?
     Why was `cex` set to the `sqrt(world$pop) / 10000`?
     Bonus: experiment with different ways to visualize the global population.
+
+Solution:
+```{r}
+plot(world["continent"], reset = FALSE)
+cex = sqrt(world$pop) / 10000
+world_cents = st_centroid(world, of_largest = TRUE)
+plot(st_geometry(world_cents), add = TRUE, cex = cex)
+```
+
+Ans: 
+Two similarities: 
+1. map color.  
+2. circle marks.   
+
+Two differences:
+1. legend
+2. title
+
+`cex` controls the symbol size. `cex` is set to the square root of population in order to make the area of the circle proportional to the population -- doubling the population will correspond to a circle with twice the area. If we don't use sqrt, then we will effectively double the diameter instead.
+
 
 E3. Use `plot()` to create maps of Nigeria in context (see Section 2.2.3).
 
     Adjust the `lwd`, `col` and `expandBB` arguments of plot().
     Challenge: read the documentation of `text()` and annotate the map.
 
+Solution:
+```{r}
+world_africa = world[world$continent == "Africa", ]
+plot(st_geometry(world_africa))
+
+nigeria = world[world$name_long == "Nigeria", ]
+plot(
+  st_geometry(nigeria), 
+  expandBB = c(0, 0.1, 0.2, 2), 
+  col = "gray", 
+  lwd = 4
+)
+
+# world_africa = world[world$continent == "Africa", ]
+plot(st_geometry(world_africa), add = TRUE)
+text(7.985654, 9.544975, "Nigeria")
+```
+
+
 E4. Create an empty `SpatRaster` object called `my_raster` with 10 columns and 10 rows. Assign random values between 0 and 10 to the new raster and plot it.
+
+Solution:
+```{r}
+# x11()
+# plot(my_raster, 
+#     main = "My Raster", 
+#     breaks = c(50, 100, 150, 200),
+#     mar = c(4, 4, 2, 2)
+# )
+```
+
 
 E5. Read-in the `raster/nlcd.tif` file from the **spDataLarge** package. What kind of information can you get about the properties of this file?
 
+Solution:
+```{r}
+raster_file = system.file("raster/nlcd.tif", package = "spDataLarge")
+exer5_rast = rast(raster_file)
+exer5_rast
+```
+
+Ans:
+Class is SpatRaster. Size is 1359 x 1073 (cols, rows). Number of layers: 1. Resolution (31.5, 31.5).
+xmin = 301903.3, xmax = 335735.4, 
+ymin = 4111244, ymax = 4154086, 
+CRS = ESPG:26912, datum = NAD83
+and others.
+
 E6. Check the CRS of the `raster/nlcd.tif` file from the **spDataLarge** package. What kind of information you can learn from it?
+
+Soln:
+Datum is NAD83 or the North American Datum of 1983.
+Coordinate Reference System is ESPG:26912. This is a projected coordinate system common in North America.
+
+
+
 
 
 
