@@ -578,7 +578,6 @@ plot(
   lwd = 4
 )
 
-# world_africa = world[world$continent == "Africa", ]
 plot(st_geometry(world_africa), add = TRUE)
 text(7.985654, 9.544975, "Nigeria")
 ```
@@ -588,12 +587,16 @@ E4. Create an empty `SpatRaster` object called `my_raster` with 10 columns and 1
 
 Solution:
 ```{r}
+my_raster = rast(
+  nrows = 10, ncols = 10,
+  vals = sample(0:10, 100, replace = TRUE)
+)
+
 # x11()
-# plot(my_raster, 
-#     main = "My Raster", 
-#     breaks = c(50, 100, 150, 200),
-#     mar = c(4, 4, 2, 2)
+# plot(my_raster,
+#     main = "My Raster"
 # )
+my_raster
 ```
 
 
