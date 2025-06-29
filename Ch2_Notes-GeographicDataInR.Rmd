@@ -1,0 +1,548 @@
+---
+title: 'Notes on Ch2: Geographic data in R'
+author: "Norman LIm"
+date: "2025-06-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Introduction
+
+Fundamental geographic data models:
+- vector: represents the world using points, lines, and polygons  
+- raster: divides the surface up into cells of constant size. Example: background images used in web maps  
+
+Which one to use? It depends:
+- for social science, vector data tends to dominate because human settlements tend to have discrete borders  
+- for environmental sciences, raster dominates because of reliance on sensor data  
+
+
+## Vector data
+-based on points located within a coordinate reference system (CRS)  
+
+important low-level libraries in the sf package include:  
+- GDAL  
+- PROJ  
+- GEOS: a planar (aka flat or projected) geometry engine  
+- S2: a spherical (unprojected) geometry engine  
+
+
+### Simple features
+- simple features is an open standard developed by the Open Geospatial Consortium (OGC)  
+- there are 18 geometry types supported by the simple features specification  
+- only 7 are used in most geographic research  
+- these 7 are fully supported in R via the **sf** package  
+
+Simple features fully supported in R via **sf**:  
+- multilinestring  
+- multipoint  
+- multipolygon  
+- geometrycollection  
+- polygon 
+- point 
+- linestring 
+
+load libraries:
+```{r}
+library(sf)          # classes & functions for vector data
+library(terra)       # classes & functions for raster data
+library(spData)      # for geographic data
+library(spDataLarge) # for larger geographic data
+```
+
+
+In sf,  
+- simple feature objects in R are stored in a data frame  
+- geographic data are usually contained in `geom` or `geometry` column  
+
+
+```{r}
+class(world)
+```
+
+```{r}
+names(world)
+```
+
+- in the `world` data, the `geom` column contains a list of all the coordinates of the country polygons 
+
+- `sf` objects can be plotted quickly using the function `plot()` or `plot.sf()`  
+
+```{r}
+plot(world)
+```
+
+
+Here is where R shines --- making statistical calculations --- on "geospatial data"  
+
+```{r}
+summary(world["lifeExp"])
+```
+
+Note: if we use the `$` to access the column `lifeExp`, we won't see the geom:  
+```{r}
+summary(world$lifeExp)
+```
+
+Subsetting `sf` objects
+```{r}
+world_mini = world[1:2, 1:3]
+world_mini
+```
+
+Note: again, we use more pythonic syntax here.
+
+Trying the more r-esque sytax:  
+```{r}
+world_mini2 <- world[1:2, 1:3]
+world_mini2
+```
+
+- the authors of the book prefer using the `equals assignment` notation for faster typing and compatibility with other languages such as Python and Javascript.  
+
+
+### Why simple features?
+- faster reading and writing of data  
+- enhanced plotting performance  
+- `sf` objects can be treated as data frames in most operations  
+- consistent and intuitive  
+- works with the pipe operator  
+
+
+Importing geographic vector data
+```{r}
+world_dfr = st_read(system.file("shapes/world.gpkg", package = "spData"))
+```
+
+```{r}
+world_tbl = read_sf(system.file("shapes/world.gpkg", package = "spData"))
+
+class(world_dfr)
+class(world_tbl)
+```
+
+
+## Basic maps
+```{r}
+plot(world[3:6])
+plot(world["pop"])
+```
+
+- plots can be added as layers to existing images by setting `add = TRUE`  
+
+for example:
+```{r}
+world_asia = world[world$continent == "Asia",]
+asia = st_union(world_asia)
+```
+
+Plotting Asia on top of the world map as layer:
+```{r}
+plot(world["pop"], reset = FALSE)
+plot(asia, add = TRUE, col = "red")
+```
+
+Overlaying circles on plot of map:
+```{r}
+plot(world["continent"], reset = FALSE)
+cex = sqrt(world$pop) / 10000
+world_cents = st_centroid(world, of_largest = TRUE)
+plot(st_geometry(world_cents), add = TRUE, cex = cex)
+```
+
+- in the code, the function `st_centroid()` was used to "convert" polygons to points. The aesthetics are controlled by the `cex` argument.  
+
+
+Plotting with Expanded bounding box
+```{r}
+india = world[world$name_long == "India", ]
+plot(st_geometry(india), expandBB = c(0, 0.2, 0.1, 1), col= "gray", lwd = 3)
+plot(st_geometry(world_asia), add = TRUE)
+```
+
+
+### Geometry types
+
+Standard encoding for simple feature geometries:  
+- well-known binary (WKB): usually in hexadecimal  
+- well-known text (WKT): human-readable text  
+
+
+Commonly used geometry types in `sf`:
+- point: coordinates in two-, three-, or four-dimensional space. Example: `POINT (5 2)`  
+- linestring: a sequence of points with a straight line connecting the points. Example: `LINESTRING (1 5, 4 4, 4 1, 2 2, 3 2)`  
+- polygon: a sequence of points that form a closed, non-intersecting ring. Example: `POLYGON ((1 5, 2 2, 4 1, 4 4, 1 5))`  
+- Multipoint: Example: `MULTIPOINT (5 2, 1 3, 3 4, 3 2)`  
+- Multilinestring: Example: `MULTILINESTRING ((1 5, 4 4, 4 1, 2 2, 3 2), (1 2, 2 4))`  
+- Multipolygon: Example: `MULTIPOLYGON (((1 5, 2 2, 4 1, 4 4, 1 5), (0 2, 1 2, 1 3, 0 3, 0 2)))`  
+- Geometry collection: any combination of the geometries above. Example: `GEOMETRYCOLLECTION (MULTIPOINT (5 2, 1 3, 3 4, 3 2), LINESTRING (1 5, 4 4, 4 1, 2 2, 3 2))`  
+
+
+Combining geometries and non-geographic attributes
+```{r}
+lnd_point = st_point(c(0.1, 51.1))
+lnd_geom = st_sfc(lnd_point, crs = "ESPG:4326")
+lnd_attrib = data.frame(
+  name = "London",
+  temperature = 25,
+  date = as.Date("2023-06-21")
+)
+lnd_sf = st_sf(lnd_attrib, geometry = lnd_geom)
+
+lnd_sf
+```
+
+- if we need to "make"draw" geometries from scatch, we add an `st_` prefix to the geometry type listed above  
+
+```{r}
+st_point(c(5, 2))
+st_point(c(5, 2, 3))
+st_point(c(5, 2, 1), dim = "XYM")
+st_point(c(5, 2, 3, 1))
+```
+
+- XY is 2d, XYZ is 3d, XYZM is 3d with additional variable (like for improving measurement accuracy)  
+
+```{r}
+# multipoint
+multipoint_matrix = rbind(c(5, 2), c(1, 3), c(3, 4), c(3, 2))
+st_multipoint(multipoint_matrix)
+
+# linestring
+linestring_matrix = rbind(c(1, 5), c(4, 4), c(4, 1), c(2, 2), c(3, 2))
+st_linestring(linestring_matrix)
+```
+
+Multi-sf examples:
+```{r}
+## POLYGON
+polygon_list = list(rbind(c(1, 5), c(2, 2), c(4, 1), c(4, 4), c(1, 5)))
+st_polygon(polygon_list)
+
+## POLYGON with a hole
+polygon_border = rbind(c(1, 5), c(2, 2), c(4, 1), c(4, 4), c(1, 5))
+polygon_hole = rbind(c(2, 4), c(3, 4), c(3, 3), c(2, 3), c(2, 4))
+polygon_with_hole_list = list(polygon_border, polygon_hole)
+st_polygon(polygon_with_hole_list)
+
+## MULTILINESTRING
+multilinestring_list = list(rbind(c(1, 5), c(4, 4), c(4, 1), c(2, 2), c(3, 2)), 
+                            rbind(c(1, 2), c(2, 4)))
+st_multilinestring(multilinestring_list)
+
+## MULTIPOLYGON
+multipolygon_list = list(list(rbind(c(1, 5), c(2, 2), c(4, 1), c(4, 4), c(1, 5))),
+                         list(rbind(c(0, 2), c(1, 2), c(1, 3), c(0, 3), c(0, 2))))
+st_multipolygon(multipolygon_list)
+
+## GEOMETRYCOLLECTION
+geometrycollection_list = list(st_multipoint(multipoint_matrix),
+                              st_linestring(linestring_matrix))
+st_geometrycollection(geometrycollection_list)
+```
+
+
+### Simple feature columns (sfc)
+- a list of `sfg` objects, where an `sfg` object contains only a single simple feature geometry.  
+- to combine simple features in a objet with two features, we can use the `st_sfc()`  
+- this looks like a function analogous to the concatenate function in r-base (`c()`):  
+```{r}
+point1 = st_point(c(5, 2))
+point2 = st_point(c(1, 3))
+
+points_sfc = st_sfc(point1, point2)
+points_sfc
+```
+
+- when `sfc` objects contain objects of the same geometry type, they can be converted into an `sfc` of polygon type  
+- the geometry type of an object can be verified using `st_geometry_type()`:  
+```{r}
+polygon_list1 = list(rbind(c(1, 5), c(2, 2), c(4, 1), c(4, 4), c(1, 5)))
+polygon1 = st_polygon(polygon_list1)
+
+polygon_list2 = list(rbind(c(0, 2), c(1, 2), c(1, 3), c(0, 3), c(0, 2)))
+polygon2 = st_polygon(polygon_list2)
+
+polygon_sfc = st_sfc(polygon1, polygon2)
+st_geometry_type(polygon_sfc)
+```
+
+- multilinesgring examples:
+```{r}
+# sfc MULTILINESTRING
+multilinestring_list1 = list(rbind(c(1, 5), c(4, 4), c(4, 1), c(2, 2), c(3, 2)), 
+                            rbind(c(1, 2), c(2, 4)))
+multilinestring1 = st_multilinestring((multilinestring_list1))
+multilinestring_list2 = list(rbind(c(2, 9), c(7, 9), c(5, 6), c(4, 7), c(2, 7)), 
+                            rbind(c(1, 7), c(3, 8)))
+multilinestring2 = st_multilinestring((multilinestring_list2))
+multilinestring_sfc = st_sfc(multilinestring1, multilinestring2)
+st_geometry_type(multilinestring_sfc)
+```
+
+
+- it is also possible to create an `sfc` object from `sfg` objects with different geometry types:  
+```{r}
+point_multilinestring_sfc = st_sfc(point1, multilinestring1)
+st_geometry_type(point_multilinestring_sfc)
+```
+
+- `sfc` objects can store additional information on the coordinate reference system (CRS).  
+- the crs information can be verified with `st_crs()`:  
+```{r}
+st_crs(points_sfc)
+```
+
+- all geometries in `sfc` objects must have the same CRS. 
+- the functions `st_sfc()` or `st_sf()` can be used to specify the CRS. 
+```{r}
+# Set the crs with an identifier referring to an "EPSG" CRS code
+points_sfc_wgs = st_sfc(point1, point2, crs = "EPSG:4326")
+st_crs(points_sfc_wgs)
+```
+
+
+### The `sfheaders` package
+- speeds up the construction, conversion, and manipulation of `sf` objects.  
+
+Example: a vector converted to `sfg_POINT`
+```{r}
+v = c(1, 1)
+v_sfg_sfh = sfheaders::sfg_point(obj = v)
+v_sfg_sfh
+```
+
+Example: creation of `sfg` objects from matrices and data frames:
+```{r}
+# from matrix
+m = matrix(1:8, ncol = 2)
+sfheaders::sfg_linestring(obj = m)
+
+# from data frame
+df = data.frame(x = 1:4, y = 4:1)
+sfheaders::sfg_polygon(obj = df)
+```
+
+Other examples:
+```{r}
+sfheaders::sfc_point(obj = v)
+sfheaders::sfc_linestring(obj = m)
+sfheaders::sfc_polygon(obj = df)
+
+sfheaders::sf_point(obj = v)
+sfheaders::sf_linestring(obj = m)
+sfheaders::sf_polygon(obj = df)
+```
+
+
+Example: defining the CRS on an object created by using `sfheaders`:  
+```{r}
+df_sf = sfheaders::sf_polygon(obj = df)
+st_crs(df_sf) = "EPSG:4326"
+```
+
+
+### Spherical geometry operations with S2
+- the S2 geometry engine is turned on by default   
+
+To verify if S2 engine is set to on or off:  
+```{r}
+sf_use_s2()
+```
+
+
+What if the S2 engine is turned off?
+```{r}
+india_buffer_with_s2 = st_buffer(india, 1) # 1 meter
+sf_use_s2(FALSE)
+
+india_buffer_without_s2 = st_buffer(india, 1) # 1 degree
+```
+
+Leaving the S2 engine turned on, unless explicitly stated:
+```{r}
+sf_use_s2(TRUE)
+```
+
+### Raster data
+- represents the world with continuous grid of cells aka pixels  
+- usually consists of a raster header and a matrix that represent the pixels  
+- the raster header defines the CRS, origin, and extent  
+- the origin is usually the lower left corner    
+- in `terra`, the origin is the upper left corner  
+
+Resolution formula:
+$$
+\text{resolution} = \frac{\text{xmax}-\text{xmin}}{\text{ncol}}, \frac{\text{ymax}-\text{ymin}}{\text{nrow}}
+$$
+
+We can easily access and modify each single cell by:
+- using the ID of a cell  
+- explicitly specifying the rows and columns  
+
+
+### R packages for working with raster data
+- **terra**  
+- **stars**  
+
+Converting **terra** objects to **stars**:
+- `st_as_stars()`
+
+Converting **stars** objects to **terra**:
+- `rast()`
+
+
+### Introduction to **terra**
+- terra provides the possibility to divide the raster into smaller chunks and process them iteratively instead of loading the whole raster file into RAM  
+
+Example: basic terra usage
+
+Creation of a `SpatRaster` object
+```{r}
+raster_filepath = system.file("raster/srtm.tif", package = "spDataLarge")
+my_rast = rast(raster_filepath)
+class(my_rast)
+```
+
+Inspection of the raster header:
+```{r}
+my_rast
+```
+
+Using dedicated functions to see a report on each raster component:
+```{r}
+dim(my_rast)
+ncell(my_rast)
+res(my_rast)
+ext(my_rast)
+crs(my_rast)
+inMemory(my_rast)
+```
+
+### Basic map-making
+
+Plotting the raster file
+```{r}
+plot(my_rast)
+```
+
+
+### Raster classes
+
+- The `SpatRaster` class represents rasters object of **terra**
+```{r}
+single_raster_file = system.file("raster/srtm.tif", package = "spDataLarge")
+single_rast = rast(raster_filepath)
+```
+
+Creating new rasters from scratch with `rast()`
+```{r}
+new_raster = rast(
+  nrows = 6, ncols = 6, 
+  xmin = -1.5, xmax = 1.5, 
+  ymin = -1.5, ymax = 1.5,
+  vals = 1:36
+)
+```
+
+- based on the resolution formula above, the example has a resolution of 0.5 degrees.  
+- the unit is degrees since the default CRS of raster objects is WGS84.  
+- the CRS can be specified using the `crs` argument    
+
+The `SpatRaster` class also handles multiple layers:
+```{r}
+multi_raster_file = system.file("raster/landsat.tif", package = "spDataLarge")
+multi_rast = rast(multi_raster_file)
+multi_rast
+```
+
+
+Displaying the number of layers with `nlyr()`:
+```{r}
+nlyr(multi_rast)
+```
+
+- in multi-layer raster objects, layers can be "subset" using `[[]]` or `$`  
+- `terra::subset()` can also be used to select layers  
+```{r}
+multi_rast3 = subset(multi_rast, 3)
+multi_rast4 = subset(multi_rast, 4)
+```
+
+
+- just like in r-base, combining can be accomplished using the comcatenate operator:
+```{r}
+multi_rast34 = c(multi_rast3, multi_rast4)
+```
+
+
+### Geographic coordinate reference systems
+- longitude: East-West angular distance from the Prime Meridian plane    
+- latitude: North-South angular distance from the equatorial plane  
+- Earth is assumed to be spherical (less accurate) or ellipsoidal (more accurate)  
+- equatorial radius is about 11.5 km longer than the polar radius  
+- for the ellipsoidal model, what ellipsoid to use is defined by the *datum*  
+- geocentric datum (WGS84) has its center located in the Earth's center of gravity  
+- local datum (e.g. NAD83) the ellipsoidal surface is shifted to align with the surface at a particular location  
+- with  local datum, local variations in the earth's surface are accounted for  
+
+
+### Projected coordinate reference systems
+- the three-dimensional surface of the Earth is "projected" on a flat surface    
+- the transformation introduces some deformations  
+- some parts get distorted  
+- main projection types include conic, cylindrical, and planar  
+
+
+### Units
+- most CRSs use meters, but some use feet  
+```{r}
+luxembourg = world[world$name_long == "Luxembourg",]
+st_area(luxembourg)
+```
+
+- be careful with the units when doing calculations  
+- if we simply divide the area with the conversion factor 1000000 to convert the area to sq. km:
+```{r}
+st_area(luxembourg) / 1000000
+```
+the result is still in square meters. This is not correct.  
+
+- the better way is to use the **units** package to convert units:
+```{r}
+units::set_units(st_area(luxembourg), km^2)
+```
+
+
+- the `res()` command will not show the units of the raster data  
+- only **sf** supports units  
+- we have to know the units used in the projection of choice  
+
+
+## Exercises
+E1. Use `summary()` on the geometry column of the world data object that is included in the **spData** package. What does the output tell us about:
+
+    Its geometry type?
+    The number of countries?
+    Its coordinate reference system (CRS)?
+
+E2. Run the code that ‘generated’ the map of the world in Section 2.2.3 (Basic map-making). Find two similarities and two differences between the image on your computer and that in the book.
+
+    What does the `cex` argument do (see ?plot)?
+    Why was `cex` set to the `sqrt(world$pop) / 10000`?
+    Bonus: experiment with different ways to visualize the global population.
+
+E3. Use `plot()` to create maps of Nigeria in context (see Section 2.2.3).
+
+    Adjust the `lwd`, `col` and `expandBB` arguments of plot().
+    Challenge: read the documentation of `text()` and annotate the map.
+
+E4. Create an empty `SpatRaster` object called `my_raster` with 10 columns and 10 rows. Assign random values between 0 and 10 to the new raster and plot it.
+
+E5. Read-in the `raster/nlcd.tif` file from the **spDataLarge** package. What kind of information can you get about the properties of this file?
+
+E6. Check the CRS of the `raster/nlcd.tif` file from the **spDataLarge** package. What kind of information you can learn from it?
+
+
+
